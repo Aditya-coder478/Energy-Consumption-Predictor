@@ -1,0 +1,19 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+sqlalchemy>=2.0.0
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.1.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.1
+pydantic[email]>=2.7.0
+
+# Uncomment when moving from SQLite to PostgreSQL:
+# psycopg2-binary>=2.9.9
+
+# Required for the real ML model (trained with scikit-learn + xgboost,
+# saved with joblib; see app/services/prediction_service.py):
+scikit-learn>=1.4.0
+xgboost>=2.0.0
+joblib>=1.4.0
+pandas>=2.2.0
+numpy>=1.26.0
