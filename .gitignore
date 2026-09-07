@@ -17,6 +17,4 @@ venv/
 .idea/
 .DS_Store
 
-# Future ML model artifacts
-*.pkl
-*.joblib
+

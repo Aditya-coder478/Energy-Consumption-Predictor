@@ -20,7 +20,6 @@ class PredictionRequest(BaseModel):
     industrial_load_pct: float = Field(..., ge=0, le=100)
     number_of_households: float = Field(..., ge=0)
     number_of_commercial_establishments: float = Field(..., ge=0)
-    historical_consumption_kwh: float = Field(..., ge=0)
 
 
 class PredictionResponse(BaseModel):

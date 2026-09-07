@@ -36,6 +36,8 @@ NUMERIC_COLS = [
     "humidity_squared",
 ]
 
+HISTORICAL_CONSUMPTION_CONSTANT = 115319324
+
 
 class PredictionService:
     def __init__(self):
@@ -60,7 +62,7 @@ class PredictionService:
 
     def _build_features(self, input_data: PredictionRequest) -> pd.DataFrame:
         row = input_data.model_dump()
-
+        row["historical_consumption_kwh"] = HISTORICAL_CONSUMPTION_CONSTANT
         row["total_load_pct"] = (
             row["residential_load_pct"] + row["commercial_load_pct"]
         )
