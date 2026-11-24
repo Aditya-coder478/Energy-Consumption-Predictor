@@ -3,6 +3,7 @@ import LandingPage from './components/LandingPage'
 import LoginPage from './components/LoginPage'
 import RegisterPage from './components/RegisterPage'
 import { PredictorPage } from './components/PredictorPage'
+import { AnalyticsPage } from './components/AnalyticsPage'
 
 export default function App() {
   const [page, setPage] = useState(() => {
@@ -60,5 +61,9 @@ export default function App() {
     )
   }
 
-  return <PredictorPage onBack={handleLogout} />
+  if (page === 'analytics') {
+    return <AnalyticsPage onBack={() => setPage('predict')} onSessionExpired={handleLogout} />
+  }
+
+  return <PredictorPage onBack={handleLogout} onAnalytics={() => setPage('analytics')} />
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowUpRight, Droplets, Gauge, MapPin, Thermometer, Wind } from 'lucide-react'
+import { Activity, ArrowUpRight, BarChart3, Droplets, Gauge, MapPin, Thermometer, Wind } from 'lucide-react'
 
 import BackButton from './BackButton'
 import { ApiError, apiGet, apiPost } from '../api'
@@ -41,7 +41,7 @@ function MetricIcon({ type }) {
   return <Icon aria-hidden="true" className="size-4 text-primary" />
 }
 
-export function PredictorPage({ onBack }) {
+export function PredictorPage({ onBack, onAnalytics }) {
   const [cityTier, setCityTier] = useState('Tier-1')
   const [incomeLevel, setIncomeLevel] = useState('Medium')
   const [month, setMonth] = useState('2026-06')
@@ -115,7 +115,10 @@ export function PredictorPage({ onBack }) {
             <h1 className="max-w-xl text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Plan smarter for the city ahead.</h1>
             <p className="mt-3 max-w-lg text-sm leading-6 text-muted-foreground">Estimate urban energy demand from population, climate, and cooling signals.</p>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground shadow-sm"><Activity className="size-4 text-primary" /> Model ready <span className="size-1.5 rounded-full bg-primary" /></div>
+          <div className="flex items-center gap-3">
+            {onAnalytics && <button type="button" onClick={onAnalytics} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90"><BarChart3 className="size-4" /> Model analytics</button>}
+            <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground shadow-sm"><Activity className="size-4 text-primary" /> Model ready <span className="size-1.5 rounded-full bg-primary" /></div>
+          </div>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
