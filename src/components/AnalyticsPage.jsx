@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bar, BarChart, Cell, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, Cell, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts'
 
 import BackButton from './BackButton'
 import { ApiError, apiGet } from '../api'
@@ -71,7 +71,7 @@ export function AnalyticsPage({ onBack, onSessionExpired }) {
     Promise.all([
       apiGet('/analytics/summary'),
       apiGet('/analytics/model-comparison'),
-      apiGet('/analytics/actual-vs-predicted?limit=300'),
+      apiGet('/analytics/actual-vs-predicted?limit=2400'),
       apiGet('/analytics/error-distribution?bins=20'),
     ])
       .then(([s, m, p, e]) => {
@@ -89,6 +89,9 @@ export function AnalyticsPage({ onBack, onSessionExpired }) {
       })
     return () => { cancelled = true }
   }, [])
+
+  // Same range on both axes so the red diagonal is a true 45-degree line.
+  const maxValue = points.length ? Math.ceil(Math.max(...points.map((pt) => Math.max(pt.actual, pt.predicted))) / 1e8) * 1e8 : 1
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 lg:px-10 lg:py-12">
@@ -119,18 +122,19 @@ export function AnalyticsPage({ onBack, onSessionExpired }) {
               </div>
             </Card>
 
-            <Card title="Actual vs predicted" subtitle={`${points.length} evenly spaced rows out of ${summary.total_rows.toLocaleString()}`}>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={points}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="index" fontSize={12} />
-                  <YAxis tickFormatter={toMillions} fontSize={12} />
-                  <Tooltip formatter={(v) => `${toMillions(v)} kWh`} labelFormatter={(i) => `Row ${i}`} />
-                  <Legend />
-                  <Line dataKey="actual" name="Actual" stroke={TEAL} dot={false} strokeWidth={2} />
-                  <Line dataKey="predicted" name="Predicted" stroke={AMBER} dot={false} strokeWidth={2} />
-                </LineChart>
+            <Card title="Actual vs predicted" subtitle={`${points.length.toLocaleString()} of ${summary.total_rows.toLocaleString()} rows. Points close to the red dashed line are accurate predictions.`}>
+              <ResponsiveContainer width="100%" height={420}>
+                <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" dataKey="actual" name="Actual" domain={[0, maxValue]} tickFormatter={(v) => (v / 1e6).toFixed(0)} fontSize={12} label={{ value: 'Actual energy consumption (million kWh)', position: 'insideBottom', offset: -18, fontSize: 12 }} />
+                  <YAxis type="number" dataKey="predicted" name="Predicted" domain={[0, maxValue]} tickFormatter={(v) => (v / 1e6).toFixed(0)} fontSize={12} label={{ value: 'Predicted (million kWh)', angle: -90, position: 'insideLeft', offset: 0, fontSize: 12 }} />
+                  <Tooltip cursor={{ strokeDasharray: '3 3' }} formatter={(v, name) => [`${toMillions(v)} kWh`, name]} />
+                  <Legend verticalAlign="top" />
+                  <ReferenceLine segment={[{ x: 0, y: 0 }, { x: maxValue, y: maxValue }]} stroke="#ef4444" strokeDasharray="6 4" strokeWidth={2} ifOverflow="extendDomain" label={undefined} />
+                  <Scatter name="Predictions" data={points} fill={TEAL} fillOpacity={0.55} isAnimationActive={false} />
+                </ScatterChart>
               </ResponsiveContainer>
+              <p className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground"><span className="inline-block w-6 border-t-2 border-dashed border-red-500" /> Perfect prediction (actual = predicted)</p>
             </Card>
 
             <Card
