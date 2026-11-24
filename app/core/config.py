@@ -15,6 +15,10 @@ class Settings:
 
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
+    @property
+    def frontend_origins(self) -> list[str]:
+        return [o.strip() for o in self.FRONTEND_URL.split(",") if o.strip()]
+
 
 settings = Settings()
 
