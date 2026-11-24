@@ -1,6 +1,6 @@
 # ⚡ Electricity Energy Prediction API
 
-A FastAPI backend for an electricity energy consumption prediction platform. It provides JWT-based authentication and a `/predict` endpoint backed by a trained ML model (Random Forest / XGBoost / Linear Regression / Neural Network, whichever scored best — see [Model](#-model)).
+A FastAPI backend for an electricity energy consumption prediction platform. It provides JWT-based authentication, a `/predict` endpoint backed by a trained XGBoost model (see [Model](#-model)), and `/analytics/*` endpoints that serve chart data.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg)
@@ -58,21 +58,25 @@ backend/
 │   ├── main.py                    # App creation, CORS, router registration
 │   ├── routers/
 │   │   ├── auth.py                # /auth/register, /auth/login, /auth/me
-│   │   └── prediction.py          # /predict (protected)
+│   │   ├── prediction.py          # /predict (protected)
+│   │   └── analytics.py           # /analytics/* chart data (protected)
 │   ├── schemas/
 │   │   ├── auth.py                # Request/response models for auth
-│   │   └── prediction.py          # Request/response models for prediction
+│   │   ├── prediction.py          # Request/response models for prediction
+│   │   └── analytics.py           # Response models for chart data
 │   ├── models/
 │   │   └── user.py                # SQLAlchemy User table
 │   ├── services/
 │   │   ├── auth_service.py        # Registration/login business logic
-│   │   └── prediction_service.py  # Model loading, feature engineering, inference
+│   │   ├── prediction_service.py  # Model loading, feature engineering, inference
+│   │   └── analytics_service.py   # Builds chart data from data/ files
 │   ├── database/
 │   │   └── database.py            # Engine/session setup
 │   └── core/
 │       ├── config.py              # Reads settings from environment/.env
 │       └── security.py            # Password hashing + JWT helpers
-├── models/                        # Trained model artifacts (.pkl, gitignored)
+├── data/                          # model_metadata.json + evaluation_data.csv (analytics)
+├── models/                        # best_energy_model.pkl + preprocessor.pkl
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -82,6 +86,15 @@ backend/
 Each layer has one job: **routers** handle HTTP concerns only, **schemas** define data shape, **services** hold the actual logic, and **models** define database tables. This keeps the ML model swappable without touching auth, routing, or the database.
 
 ## 🚀 Getting Started
+
+### Quick start (everything is already set up)
+
+1. Install Python 3.10+ (3.12 recommended).
+2. Double-click **`run.bat`** (Windows) or run **`./run.sh`** (macOS/Linux). The first run creates a virtual environment and installs the requirements, which takes a few minutes. Later runs start immediately.
+3. Open `http://127.0.0.1:8000/docs` for the interactive API docs.
+4. With the server running, open a second terminal in this folder and run `python smoke_test.py` to check registration, login, `/predict` and all four `/analytics/*` endpoints.
+
+`.env` is already included with a generated `SECRET_KEY`. The sections below are the manual setup, if you prefer it.
 
 ### Prerequisites
 - Python 3.10+
@@ -111,7 +124,7 @@ Generate a secret key and set it in `.env`:
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-### Add the trained model (optional)
+### Trained model files
 
 Place the following files (produced by the training pipeline) into `backend/models/`:
 
@@ -120,7 +133,7 @@ backend/models/best_energy_model.pkl
 backend/models/preprocessor.pkl
 ```
 
-If these files are absent, `/predict` automatically falls back to a mock response so the rest of the API remains testable.
+Both files are required and must come from the same training run. If either is missing or they do not match, `/predict` returns `503 Service Unavailable` with an explanation (there is no mock fallback). Everything else in the API keeps working.
 
 ### Run
 
@@ -150,6 +163,10 @@ All endpoints are documented interactively at `/docs`. Summary:
 | `POST` | `/auth/login` | No | Authenticate and receive a JWT |
 | `GET` | `/auth/me` | Yes | Get the current authenticated user's profile |
 | `POST` | `/predict` | Yes | Get an electricity consumption prediction |
+| `GET` | `/analytics/summary` | Yes | Headline numbers for the best model |
+| `GET` | `/analytics/model-comparison` | Yes | MAE / RMSE / R² / MAPE per model (bar chart) |
+| `GET` | `/analytics/actual-vs-predicted` | Yes | Actual vs predicted points (line / scatter chart) |
+| `GET` | `/analytics/error-distribution` | Yes | Histogram of prediction errors (bar chart) |
 | `GET` | `/` | No | Health check |
 
 ### `POST /auth/register`
@@ -182,31 +199,50 @@ Requires header: `Authorization: Bearer <access_token>`
 
 ```json
 {
-  "city_tier": 1,
-  "income_level": 3,
+  "city_tier": "Tier-1",
+  "income_level": "Medium",
+  "month": "2026-06",
   "season": "Summer",
-  "population": 500000,
-  "population_density": 8500,
-  "city_area_km2": 58.8,
-  "urban_growth_rate": 4.5,
-  "temperature": 35.2,
-  "humidity": 65,
-  "rainfall": 12.5,
-  "residential_load_pct": 60,
-  "commercial_load_pct": 30,
-  "industrial_load_pct": 10,
-  "number_of_households": 150000,
-  "number_of_commercial_establishments": 5000,
-  "historical_consumption_kwh": 11000
+  "population": 1330000,
+  "number_of_households": 335000,
+  "commercial_establishments": 8350,
+  "industrial_establishments": 106,
+  "temperature_c": 27.9,
+  "humidity_pct": 60.5,
+  "ac_penetration_pct": 19.5
 }
 ```
 
-Response:
+| Field | Allowed values |
+|---|---|
+| `city_tier` | `Tier-1`, `Tier-2`, `Tier-3` |
+| `income_level` | `Low`, `Medium`, `High` |
+| `month` | `YYYY-MM`, from `2025-01` to `2026-12` (the months the model was trained on) |
+| `season` | `Summer`, `Monsoon`, `Winter` |
+| `population`, `number_of_households` | greater than 0 |
+| `commercial_establishments`, `industrial_establishments` | 0 or more |
+| `temperature_c` | -50 to 60 |
+| `humidity_pct`, `ac_penetration_pct` | 0 to 100 |
+
+Response (predicted consumption in kWh):
 ```json
-{ "prediction": 12345.67, "mock": false }
+{ "prediction": 95615448.0 }
 ```
 
-`mock: true` indicates the model files weren't found and a placeholder value was returned instead.
+Values the model was not trained on (for example `month: "2027-03"`) return `422` with a message listing the allowed values.
+
+### Analytics (chart data)
+
+All four endpoints are `GET`, need `Authorization: Bearer <access_token>`, and return JSON ready for a charting library. They read `data/model_metadata.json` and `data/evaluation_data.csv`; if those files are missing they return `503`.
+
+| Endpoint | Query params | Response (shape) |
+|---|---|---|
+| `/analytics/summary` | none | `best_model`, `target`, `total_rows`, `mean_actual`, `mean_predicted`, `mae`, `rmse`, `r2`, `mape`, `categorical_features`, `numerical_features` |
+| `/analytics/model-comparison` | none | `best_model`, `models[]` with `name`, `mae`, `mse`, `rmse`, `r2`, `mape`, `is_best` |
+| `/analytics/actual-vs-predicted` | `limit` (10-5000, default 300) | `total_rows`, `returned_rows`, `points[]` with `index`, `actual`, `predicted`, `error` (actual − predicted) |
+| `/analytics/error-distribution` | `bins` (5-100, default 20) | `bins[]` with `label`, `lower`, `upper`, `count`, plus `mean_error`, `median_error`, `std_error`, `mean_absolute_error` |
+
+Values are in kWh (MAPE is a percentage). `limit` picks evenly spaced rows, so the same call always returns the same points.
 
 ## 🔐 Authentication Flow
 
@@ -220,18 +256,36 @@ Register  →  Login (JWT issued)  →  Authorization: Bearer <token>  →  Prot
 
 ## 🤖 Model
 
+- **Model:** XGBoost regressor (`models/best_energy_model.pkl`), 42 encoded input features
 - **Target:** `energy_consumption_kwh` (log-transformed during training; predictions are converted back with `np.expm1`)
-- **Preprocessing:** a separate `ColumnTransformer` (`preprocessor.pkl`) handles one-hot encoding for categorical fields (`city_tier`, `income_level`, `season`) and scaling for numeric fields — applied before inference, not baked into the model
-- **Engineered features:** 7 derived columns (e.g. `total_load_pct`, `temp_humidity_interaction`, `temperature_squared`) computed server-side to match training
-- **Swapping in a retrained model:** update `app/services/prediction_service.py` (feature list/engineering) and `app/schemas/prediction.py` (input contract) — no other files need to change
+- **Preprocessing:** `models/preprocessor.pkl` is a `ColumnTransformer` (one-hot encoding for `city_tier`, `income_level`, `month`, `season`; median-impute + standard scaling for the 13 numeric features). It is applied before inference and is not baked into the model. Its column list and allowed category values are read from the file itself.
+- **Library versions:** the pickles were saved with scikit-learn 1.9.0, which `requirements.txt` pins. Reinstall with `pip install -r requirements.txt` if loading fails.
+- **Swapping in a retrained model:** replace both `.pkl` files together, then update `app/schemas/prediction.py` (inputs) and the derived features in `app/services/prediction_service.py` if the feature set changed.
 
-> **Note:** predictions can be unreliable for inputs far outside the ranges seen in training data. Validate input ranges against the training dataset before trusting extreme predictions.
+### Derived features
+
+The client sends 7 numeric inputs; the other 6 numeric features are computed in `prediction_service.py`:
+
+| Feature | Formula |
+|---|---|
+| `people_per_household` | `population / number_of_households` |
+| `commercial_density` | `commercial_establishments / population * 1000` |
+| `industrial_density` | `industrial_establishments / population * 1000` |
+| `cooling_demand_index` | `temperature_c * ac_penetration_pct` |
+| `temperature_squared` | `temperature_c ** 2` |
+| `temperature_humidity_interaction` | `temperature_c * humidity_pct` |
+
+These formulas were reconstructed by checking each candidate against the training mean and standard deviation stored in `preprocessor.pkl`, not copied from the training notebook. **Confirm them against the notebook** (especially `commercial_density`, `industrial_density` and `cooling_demand_index`).
+
+> **Note:** predictions can be unreliable for inputs far outside the ranges seen in training data.
 
 ## ⚠️ Error Responses
 
 | Situation | Status |
 |---|:---:|
 | Invalid registration/request data | `422` |
+| `/predict` value the model was not trained on | `422` |
+| Model or analytics data files missing or mismatched | `503` |
 | Email already registered | `409` |
 | Wrong email/password on login | `401` |
 | Missing, invalid, or expired JWT | `401` |

@@ -10,9 +10,9 @@ pydantic[email]>=2.7.0
 # Uncomment when moving from SQLite to PostgreSQL:
 # psycopg2-binary>=2.9.9
 
-# Required for the real ML model (trained with scikit-learn + xgboost,
+# Required for the ML model (trained with scikit-learn 1.9 + xgboost,
 # saved with joblib; see app/services/prediction_service.py):
-scikit-learn>=1.4.0
+scikit-learn>=1.9.0,<1.10
 xgboost>=2.0.0
 joblib>=1.4.0
 pandas>=2.2.0

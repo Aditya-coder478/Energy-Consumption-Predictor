@@ -1,0 +1,66 @@
+# A command-line tool for testing.
+#
+# Usage:
+#
+# python -m email_validator test@example.org
+# python -m email_validator < LIST_OF_ADDRESSES.TXT
+#
+# Provide email addresses to validate either as a command-line argument
+# or in STDIN separated by newlines. Validation errors will be printed for
+# invalid email addresses. When passing an email address on the command
+# line, if the email address is valid, information about it will be printed.
+# When using STDIN, no output will be given for valid email addresses.
+#
+# Keyword arguments to validate_email can be set in environment variables
+# of the same name but uppercase (see below).
+
+import json
+import os
+import sys
+from typing import Any, Optional
+
+from .validate_email import validate_email, _Resolver
+from .deliverability import caching_resolver
+from .exceptions import EmailNotValidError
+
+
+def main(dns_resolver: Optional[_Resolver] = None) -> None:
+    # The dns_resolver argument is for tests.
+
+    # Set options from environment variables.
+    options: dict[str, Any] = {}
+    for varname in ('ALLOW_SMTPUTF8', 'ALLOW_EMPTY_LOCAL', 'ALLOW_QUOTED_LOCAL', 'ALLOW_DOMAIN_LITERAL',
+                    'ALLOW_DISPLAY_NAME',
+                    'GLOBALLY_DELIVERABLE', 'CHECK_DELIVERABILITY', 'TEST_ENVIRONMENT'):
+        if varname in os.environ:
+            # bool() would make any non-empty string True, so e.g.
+            # CHECK_DELIVERABILITY=false would enable the check.
+            options[varname.lower()] = os.environ[varname].strip().lower() not in ('', '0', 'false', 'no', 'off')
+    for varname in ('DEFAULT_TIMEOUT',):
+        if varname in os.environ:
+            # DEFAULT_TIMEOUT is a module-level default read by
+            # caching_resolver(), not a keyword argument of validate_email.
+            import email_validator
+            email_validator.DEFAULT_TIMEOUT = int(os.environ[varname])
+
+    if len(sys.argv) == 1:
+        # Validate the email addresses passed line-by-line on STDIN.
+        dns_resolver = dns_resolver or caching_resolver()
+        for line in sys.stdin:
+            email = line.strip()
+            try:
+                validate_email(email, dns_resolver=dns_resolver, **options)
+            except EmailNotValidError as e:
+                print(f"{email} {e}")
+    else:
+        # Validate the email address passed on the command line.
+        email = sys.argv[1]
+        try:
+            result = validate_email(email, dns_resolver=dns_resolver, **options)
+            print(json.dumps(result.as_dict(), indent=2, sort_keys=True, ensure_ascii=False))
+        except EmailNotValidError as e:
+            print(e)
+
+
+if __name__ == "__main__":
+    main()

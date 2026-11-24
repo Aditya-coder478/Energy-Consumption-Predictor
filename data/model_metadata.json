@@ -1,0 +1,57 @@
+{
+    "best_model": "XGBoost",
+    "features": {
+        "categorical": [
+            "city_tier",
+            "income_level",
+            "month",
+            "season"
+        ],
+        "numerical": [
+            "population",
+            "number_of_households",
+            "commercial_establishments",
+            "industrial_establishments",
+            "temperature_c",
+            "humidity_pct",
+            "ac_penetration_pct",
+            "cooling_demand_index",
+            "people_per_household",
+            "commercial_density",
+            "industrial_density",
+            "temperature_squared",
+            "temperature_humidity_interaction"
+        ]
+    },
+    "target": "energy_consumption_kwh",
+    "metrics": {
+        "Linear Regression": {
+            "MAE": 16672074.46879265,
+            "MSE": 1079015798519366.9,
+            "RMSE": 32848375.88860927,
+            "R2": 0.880603178933063,
+            "MAPE": 28.589034575474177
+        },
+        "Random Forest": {
+            "MAE": 5818732.640931799,
+            "MSE": 148224835343358.7,
+            "RMSE": 12174762.229438351,
+            "R2": 0.9835984105446353,
+            "MAPE": 9.295957678122917
+        },
+        "XGBoost": {
+            "MAE": 4949102.532395833,
+            "MSE": 90175076845038.92,
+            "RMSE": 9496055.85730407,
+            "R2": 0.9900218166133078,
+            "MAPE": 8.68373281152694
+        },
+        "Neural Network (DL)": {
+            "MAE": 6432611.365517528,
+            "MSE": 188620968804413.0,
+            "RMSE": 13733934.935203858,
+            "R2": 0.9791284389971714,
+            "MAPE": 10.613992125713978
+        }
+    }
+}
